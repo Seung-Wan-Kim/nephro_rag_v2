@@ -1,67 +1,38 @@
 import streamlit as st
-from langchain_community.vectorstores import FAISS
-from langchain.embeddings import HuggingFaceEmbeddings
-from langchain.prompts import PromptTemplate
-from langchain.chains import RetrievalQA
-from langchain.llms import OpenAI
-import os
 
-# ----------------------------
-# 설정
-# ----------------------------
-st.set_page_config(page_title="Nephrology RAG", layout="wide")
-st.title("🩺 신장내과 질환 문서 기반 질의응답")
+# 검사 항목 리스트 (공통 및 중요 항목 기준)
+lab_tests = [
+    "Creatinine", "BUN", "eGFR", "Na", "K",
+    "Cl", "CO2(HCO3-)", "Ca", "Phosphorus(IP)",
+    "Albumin", "Total Protein", "LDH", "CRP",
+    "Hb", "Hematocrit", "WBC", "Platelet",
+    "Glucose", "Uric Acid", "Magnesium"
+]
 
-# ----------------------------
-# 사용자 입력
-# ----------------------------
-disease_group = st.selectbox(
-    "질병군을 선택하세요:",
-    ("AKI", "CKD", "Nephrotic Syndrome", "Glomerulonephritis", "Electrolyte Disorders")
-)
+st.set_page_config(page_title="Nephrology RAG System", layout="wide")
 
-user_question = st.text_input("질문을 입력하세요:", placeholder="예: 이 환자의 AKI 치료는 어떻게 진행해야 하나요?")
+st.title("🩺 신장내과 질환 진단 RAG 시스템")
+st.markdown("주요 혈액검사 수치를 입력하고 질문을 입력해 주세요.")
 
-# ----------------------------
-# 벡터스토어 경로 설정
-# ----------------------------
-vectorstore_path_map = {
-    "AKI": "vector_store_aki_ko",
-    "CKD": "vector_store_ckd_ko",
-    "Nephrotic Syndrome": "vector_store_ns_ko",
-    "Glomerulonephritis": "vector_store_gn_ko",
-    "Electrolyte Disorders": "vector_store_el_ko",
-}
+# 혈액검사 수치 입력 (5열 고정)
+st.subheader("🧪 혈액검사 수치 입력")
+cols = st.columns(5)
+input_values = {}
+for i, test in enumerate(lab_tests):
+    with cols[i % 5]:
+        value = st.text_input(f"{test}", key=test)
+        input_values[test] = value
 
-# ----------------------------
-# 검색 및 응답 처리 함수
-# ----------------------------
-def generate_answer(question, vectorstore_dir):
-    embeddings = HuggingFaceEmbeddings(model_name="jhgan/ko-sbert-nli")
-    vectordb = FAISS.load_local(vectorstore_dir, embeddings, allow_dangerous_deserialization=True)
+# 자연어 질문 입력
+st.markdown("---")
+st.subheader("💬 질의응답")
+query = st.text_input("질문을 입력하세요 (예: '이 수치로 AKI 가능성이 있나요?')", key="query")
 
-    qa_chain = RetrievalQA.from_chain_type(
-        llm=OpenAI(temperature=0.3),
-        chain_type="stuff",
-        retriever=vectordb.as_retriever(search_kwargs={"k": 3}),
-        return_source_documents=True,
-    )
+if st.button("🔍 질의하기"):
+    st.write("✅ 입력한 검사 수치:")
+    st.json(input_values)
 
-    result = qa_chain({"query": question})
-    return result["result"]
+    st.write("✅ 질문 내용:")
+    st.write(query)
 
-# ----------------------------
-# 질의 버튼
-# ----------------------------
-if st.button("질문하기"):
-    if not user_question:
-        st.warning("질문을 입력해주세요.")
-    else:
-        with st.spinner("질문을 처리 중입니다..."):
-            vector_path = vectorstore_path_map[disease_group]
-            try:
-                answer = generate_answer(user_question, vector_path)
-                st.success("📘 답변:")
-                st.write(answer)
-            except Exception as e:
-                st.error(f"오류 발생: {str(e)}")
+    st.info("※ 현재는 프론트엔드 UI 시연 단계입니다. 질의응답 기능은 추후 연결됩니다.")
